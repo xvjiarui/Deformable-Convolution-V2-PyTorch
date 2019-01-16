@@ -81,6 +81,7 @@ class ModulatedDeformConvPack(ModulatedDeformConv):
                                           padding=self.padding,
                                           bias=True)
         self.conv_offset_mask.lr_mult = lr_mult
+        self.conv_offset_mask.inited = True
         self.init_offset()
 
     def init_offset(self):

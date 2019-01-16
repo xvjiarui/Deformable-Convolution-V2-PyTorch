@@ -79,6 +79,7 @@ class DeformConvPack(DeformConv):
                                           padding=self.padding,
                                           bias=True)
         self.conv_offset.lr_mult = lr_mult
+        self.conv_offset.inited = True
         self.init_offset()
 
     def init_offset(self):
