@@ -207,7 +207,8 @@ def gradcheck(func, inputs, eps=1e-6, atol=1e-5, rtol=1e-3, raise_exception=True
                     # a_n = a.numpy()
                     # n_n = n.numpy()
                     # import numpy as np
-                    # print(np.sum((a_n - n_n) > atol))
+                    # print(np.sum((a_n - n_n).abs() > atol))
+                    print(torch.sum((a-n).abs() > atol))
                     # print(a_n[np.where((a_n - n_n) > atol)])
                     # print(n_n[np.where((a_n - n_n) > atol)])
                     print((a-n).abs().max())

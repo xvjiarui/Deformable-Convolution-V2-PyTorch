@@ -381,7 +381,7 @@ def check_gradient_dconv3d():
     dilation = 1
     im2col_step = 1
 
-    input = torch.rand(N, inC, inD, inH, inW).double().cuda() * 0.01
+    input = torch.rand(N, inC, inD, inH, inW).double().cuda()
     input.requires_grad = True
 
     offset = torch.randn(N, deformable_groups * 3 * kD * kW * kH, inD, inH, inW).double().cuda() * 2
@@ -395,13 +395,13 @@ def check_gradient_dconv3d():
     bias = torch.rand(outC).double().cuda()
     bias.requires_grad = True
 
+    # print('check_gradient_dconv: ',
+    #       gradcheck(_DeformConv3d, (input, offset, weight, bias,
+    #                 stride, padding, dilation, groups, deformable_groups, im2col_step),
+    #                 eps=1e-3, atol=1e-2, rtol=1e-2, raise_exception=True))
     print('check_gradient_dconv: ',
           gradcheck(_DeformConv3d, (input, offset, weight, bias,
-                    stride, padding, dilation, groups, deformable_groups, im2col_step),
-                    eps=1e-3, atol=1e-3, rtol=1e-2, raise_exception=True))
-    # print('check_gradient_dconv: ',
-    #       gradcheck(_DeformConv, (input, offset, weight, bias,
-    #                 stride, padding, dilation, deformable_groups)))
+                    stride, padding, dilation, groups, deformable_groups, im2col_step)))
 
 def check_gradient_mdconv():
     stride = 1
