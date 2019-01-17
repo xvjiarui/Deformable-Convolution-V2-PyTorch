@@ -12,45 +12,45 @@ from torch.autograd.function import once_differentiable
 
 import DCN
 
-class ModulatedDeformConvFunction(Function):
+class DeformConv2dFunction(Function):
     @staticmethod
-    def forward(ctx, input, offset, mask, weight, bias,
-                stride, padding, dilation, groups, deformable_groups, im2col_step):
+    def forward(ctx, input, offset, weight, bias,
+                stride, padding, dilation, group, deformable_groups, im2col_step):
         ctx.stride = _pair(stride)
         ctx.padding = _pair(padding)
         ctx.dilation = _pair(dilation)
         ctx.kernel_size = _pair(weight.shape[2:4])
-        ctx.groups = groups
+        ctx.group = group
         ctx.deformable_groups = deformable_groups
         ctx.im2col_step = im2col_step
-        output = DCN.modulated_deform_conv_forward(input, weight, bias,
-                                         offset, mask,
+        output = DCN.deform_conv_forward(input, weight, bias,
+                                         offset,
                                          ctx.kernel_size[0], ctx.kernel_size[1],
                                          ctx.stride[0], ctx.stride[1],
                                          ctx.padding[0], ctx.padding[1],
                                          ctx.dilation[0], ctx.dilation[1],
-                                         ctx.groups,
+                                         ctx.group,
                                          ctx.deformable_groups,
                                          ctx.im2col_step)
-        ctx.save_for_backward(input, offset, mask, weight, bias)
+        ctx.save_for_backward(input, offset, weight, bias)
         return output
 
     @staticmethod
     @once_differentiable
     def backward(ctx, grad_output):
-        input, offset, mask, weight, bias = ctx.saved_tensors
-        grad_input, grad_offset, grad_mask, grad_weight, grad_bias = \
-            DCN.modulated_deform_conv_backward(input, weight,
+        input, offset, weight, bias = ctx.saved_tensors
+        grad_input, grad_offset, grad_weight, grad_bias = \
+            DCN.deform_conv_backward(input, weight,
                                      bias,
-                                     offset, mask,
+                                     offset,
                                      grad_output,
                                      ctx.kernel_size[0], ctx.kernel_size[1],
                                      ctx.stride[0], ctx.stride[1],
                                      ctx.padding[0], ctx.padding[1],
                                      ctx.dilation[0], ctx.dilation[1],
-                                     ctx.groups,
+                                     ctx.group,
                                      ctx.deformable_groups,
                                      ctx.im2col_step)
 
-        return grad_input, grad_offset, grad_mask, grad_weight, grad_bias,\
+        return grad_input, grad_offset, grad_weight, grad_bias,\
             None, None, None, None, None, None
