@@ -131,10 +131,10 @@ __device__ scalar_t dmcn_3d_get_coordinate_weight(scalar_t argmax_d, scalar_t ar
   bool llh_con = (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_high <= width - 1);
   bool lhl_con = (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_low >= 0);
   bool lhh_con = (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1);
-  bool hll_con = (argmax_d_high <= width - 1 && argmax_h_low >= 0 && argmax_w_low >= 0);
-  bool hlh_con = (argmax_d_high <= width - 1 && argmax_h_low >= 0 && argmax_w_high <= width - 1);
-  bool hhl_con = (argmax_d_high <= width - 1 && argmax_h_high <= height - 1 && argmax_w_low >= 0);
-  bool hhh_con = (argmax_d_high <= width - 1 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1);
+  bool hll_con = (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_low >= 0);
+  bool hlh_con = (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_high <= width - 1);
+  bool hhl_con = (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_low >= 0);
+  bool hhh_con = (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1);
 
   int lll_pos = argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_low;
   int llh_pos = argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_high;
@@ -149,59 +149,59 @@ __device__ scalar_t dmcn_3d_get_coordinate_weight(scalar_t argmax_d, scalar_t ar
   if (bp_dir == 0)
   {
     if (lll_con)
-      weight += -1 * (argmax_w_low + 1 - argmax_w) * im_data[lll_pos];
+      weight += -1 * (argmax_w_high- argmax_w) * (argmax_h_high - argmax_h) * im_data[lll_pos];
     if (llh_con)
-      weight += -1 * (argmax_w - argmax_w_low) * im_data[llh_pos];
+      weight += -1 * (argmax_w - argmax_w_low) * (argmax_h_high - argmax_h) * im_data[llh_pos];
     if (lhl_con)
-      weight += (argmax_w_low + 1 - argmax_w) * im_data[lhl_pos];
+      weight += -1 * (argmax_w_high - argmax_w) * (argmax_h - argmax_h_low) * im_data[lhl_pos];
     if (lhh_con)
-      weight += (argmax_w - argmax_w_low) * im_data[lhh_pos];
+      weight += -1 * (argmax_w - argmax_w_low) * (argmax_h - argmax_h_low) * im_data[lhh_pos];
     if (hll_con)
-      weight += -1 * (argmax_w_low + 1 - argmax_w) * im_data[hll_pos];
+      weight += (argmax_w_high - argmax_w) * (argmax_h_high - argmax_h) * im_data[hll_pos];
     if (hlh_con)
-      weight += -1 * (argmax_w - argmax_w_low) * im_data[hlh_pos];
+      weight += (argmax_w - argmax_w_low) * (argmax_h_high - argmax_h) * im_data[hlh_pos];
     if (hhl_con)
-      weight += (argmax_w_low + 1 - argmax_w) * im_data[hhl_pos];
+      weight += (argmax_w_high - argmax_w) * (argmax_h - argmax_h_low) * im_data[hhl_pos];
     if (hhh_con)
-      weight += (argmax_w - argmax_w_low) * im_data[hhh_pos];
+      weight += (argmax_w - argmax_w_low) * (argmax_h - argmax_h_low) * im_data[hhh_pos];
   }
   else if (bp_dir == 1)
   {
     if (lll_con)
-      weight += -1 * (argmax_h_low + 1 - argmax_h) * im_data[lll_pos];
+      weight += -1 * (argmax_w_high - argmax_w) * (argmax_d_high - argmax_d) * im_data[lll_pos];
     if (llh_con)
-      weight += (argmax_h_low + 1 - argmax_h) * im_data[llh_pos];
+      weight += -1 * (argmax_w - argmax_w_low) * (argmax_d_high - argmax_d) * im_data[llh_pos];
     if (lhl_con)
-      weight += -1 * (argmax_h - argmax_h_low) * im_data[lhl_pos];
+      weight += (argmax_w_high - argmax_w) * (argmax_d_high - argmax_d) * im_data[lhl_pos];
     if (lhh_con)
-      weight += (argmax_h - argmax_h_low) * im_data[lhh_pos];
+      weight += (argmax_w - argmax_w_low) * (argmax_d_high - argmax_d) * im_data[lhh_pos];
     if (hll_con)
-      weight += -1 * (argmax_h_low + 1 - argmax_h) * im_data[hll_pos];
+      weight += -1 * (argmax_w_high - argmax_w) * (argmax_d - argmax_d_low) * im_data[hll_pos];
     if (hlh_con)
-      weight += (argmax_h_low + 1 - argmax_h) * im_data[hlh_pos];
+      weight += -1 * (argmax_w - argmax_w_low) * (argmax_d - argmax_d_low)* im_data[hlh_pos];
     if (hhl_con)
-      weight += -1 * (argmax_h - argmax_h_low) * im_data[hhl_pos];
+      weight += (argmax_w_high - argmax_w) * (argmax_d - argmax_d_low) * im_data[hhl_pos];
     if (hhh_con)
-      weight += (argmax_h - argmax_h_low) * im_data[hhh_pos];
+      weight += (argmax_w - argmax_w_low) * (argmax_d - argmax_d_low) * im_data[hhh_pos];
   }
   else if (bp_dir == 2)
   {
     if (lll_con)
-      weight += -1 * (argmax_d_low + 1 - argmax_d) * im_data[lll_pos];
+      weight += -1 * (argmax_h_high - argmax_h) * (argmax_d_high - argmax_d) * im_data[lll_pos];
     if (llh_con)
-      weight += (argmax_d_low + 1 - argmax_d) * im_data[llh_pos];
+      weight += (argmax_h_high - argmax_h) * (argmax_d_high - argmax_d) * im_data[llh_pos];
     if (lhl_con)
-      weight += -1 * (argmax_d - argmax_d_low) * im_data[lhl_pos];
+      weight += -1 * (argmax_h - argmax_h_low) * (argmax_d_high - argmax_d) * im_data[lhl_pos];
     if (lhh_con)
-      weight += (argmax_h - argmax_h_low) * im_data[lhh_pos];
+      weight += (argmax_h - argmax_h_low) * (argmax_d_high - argmax_d) * im_data[lhh_pos];
     if (hll_con)
-      weight += -1 * (argmax_d_low + 1 - argmax_d) * im_data[hll_pos];
+      weight += -1 * (argmax_h_high - argmax_h) * (argmax_d - argmax_d_low) * im_data[hll_pos];
     if (hlh_con)
-      weight += (argmax_d_low + 1 - argmax_d) * im_data[hlh_pos];
+      weight += (argmax_h_high - argmax_h) * (argmax_d - argmax_d_low) * im_data[hlh_pos];
     if (hhl_con)
-      weight += -1 * (argmax_d - argmax_d_low) * im_data[hhl_pos];
+      weight += -1 * (argmax_h - argmax_h_low) * (argmax_d - argmax_d_low) * im_data[hhl_pos];
     if (hhh_con)
-      weight += (argmax_d - argmax_d_low) * im_data[hhh_pos];
+      weight += (argmax_h - argmax_h_low) * (argmax_d - argmax_d_low) * im_data[hhh_pos];
   }
 
   return weight;
@@ -304,14 +304,14 @@ __global__ void deformable_3d_col2im_gpu_kernel(const int n,
     int h_in = h_out * stride_h - pad_h;
     int d_in = d_out * stride_d - pad_d;
 
-    const scalar_t *data_offset_ptr = data_offset + (b * deformable_group + deformable_group_index) * 3 * kernel_h * kernel_w * height_col * width_col;
+    const scalar_t *data_offset_ptr = data_offset + (b * deformable_group + deformable_group_index) * 3 * kernel_d * kernel_h * kernel_w * depth_col * height_col * width_col;
     const int data_offset_d_ptr = (((3 * (i * kernel_h * kernel_w + j * kernel_w + k)) * depth_col + d_out)* height_col + h_out) * width_col + w_out;
     const int data_offset_h_ptr = (((3 * (i * kernel_h * kernel_w + j * kernel_w + k) + 1) * depth_col + d_out)* height_col + h_out) * width_col + w_out;
     const int data_offset_w_ptr = (((3 * (i * kernel_h * kernel_w + j * kernel_w + k) + 2) * depth_col + d_out)* height_col + h_out) * width_col + w_out;
     const scalar_t offset_d = data_offset_ptr[data_offset_d_ptr];
     const scalar_t offset_h = data_offset_ptr[data_offset_h_ptr];
     const scalar_t offset_w = data_offset_ptr[data_offset_w_ptr];
-    const scalar_t cur_inv_d_data = d_in + j * dilation_d + offset_d;
+    const scalar_t cur_inv_d_data = d_in + i * dilation_d + offset_d;
     const scalar_t cur_inv_h_data = h_in + j * dilation_h + offset_h;
     const scalar_t cur_inv_w_data = w_in + k * dilation_w + offset_w;
 
