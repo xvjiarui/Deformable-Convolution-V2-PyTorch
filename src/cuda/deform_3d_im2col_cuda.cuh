@@ -395,7 +395,7 @@ __global__ void deformable_3d_col2im_coord_gpu_kernel(const int n,
       const scalar_t offset_d = data_offset_ptr[data_offset_d_ptr];
       const scalar_t offset_h = data_offset_ptr[data_offset_h_ptr];
       const scalar_t offset_w = data_offset_ptr[data_offset_w_ptr];
-      scalar_t inv_d = d_in + j * dilation_d + offset_d;
+      scalar_t inv_d = d_in + i * dilation_d + offset_d;
       scalar_t inv_h = h_in + j * dilation_h + offset_h;
       scalar_t inv_w = w_in + k * dilation_w + offset_w;
       if (inv_d <= -1 || inv_h <= -1 || inv_w <= -1 || inv_d >= depth || inv_h >= height || inv_w >= width)
