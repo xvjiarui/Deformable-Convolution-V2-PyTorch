@@ -14,7 +14,7 @@
       i < (n);                                          \
       i += blockDim.x * gridDim.x)
 
-const int CUDA_NUM_THREADS = 1024;
+const int CUDA_NUM_THREADS = 512;
 inline int GET_BLOCKS(const int N)
 {
   return (N + CUDA_NUM_THREADS - 1) / CUDA_NUM_THREADS;
@@ -127,106 +127,163 @@ __device__ scalar_t dmcn_3d_get_coordinate_weight(scalar_t argmax_d, scalar_t ar
 
   scalar_t weight = 0;
 
-  // bool lll_con = (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_low >= 0);
-  // bool llh_con = (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_high <= width - 1);
-  // bool lhl_con = (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_low >= 0);
-  // bool lhh_con = (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1);
-  // bool hll_con = (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_low >= 0);
-  // bool hlh_con = (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_high <= width - 1);
-  // bool hhl_con = (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_low >= 0);
-  // bool hhh_con = (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1);
+  bool lll_con = (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_low >= 0);
+  bool llh_con = (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_high <= width - 1);
+  bool lhl_con = (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_low >= 0);
+  bool lhh_con = (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1);
+  bool hll_con = (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_low >= 0);
+  bool hlh_con = (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_high <= width - 1);
+  bool hhl_con = (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_low >= 0);
+  bool hhh_con = (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1);
 
-  // int lll_pos = argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_low;
-  // int llh_pos = argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_high;
-  // int lhl_pos = argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_low;
-  // int lhh_pos = argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_high;
-  // int hll_pos = argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_low;
-  // int hlh_pos = argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_high;
-  // int hhl_pos = argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_low;
-  // int hhh_pos = argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_high;
-
+  int lll_pos = argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_low;
+  int llh_pos = argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_high;
+  int lhl_pos = argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_low;
+  int lhh_pos = argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_high;
+  int hll_pos = argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_low;
+  int hlh_pos = argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_high;
+  int hhl_pos = argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_low;
+  int hhh_pos = argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_high;
 
   if (bp_dir == 0)
   {
-    if (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_low >= 0)
-      weight += -1 * (argmax_w_high- argmax_w) * (argmax_h_high - argmax_h) 
-                * im_data[argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_low];
-    if (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_high <= width - 1)
-      weight += -1 * (argmax_w - argmax_w_low) * (argmax_h_high - argmax_h) 
-                * im_data[argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_high];
-    if (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_low >= 0)
-      weight += -1 * (argmax_w_high - argmax_w) * (argmax_h - argmax_h_low) 
-                * im_data[argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_low];
-    if (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1)
-      weight += -1 * (argmax_w - argmax_w_low) * (argmax_h - argmax_h_low) 
-                * im_data[argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_high];
-    if (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_low >= 0)
-      weight += (argmax_w_high - argmax_w) * (argmax_h_high - argmax_h) 
-                * im_data[argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_low];
-    if (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_high <= width - 1)
-      weight += (argmax_w - argmax_w_low) * (argmax_h_high - argmax_h) 
-                * im_data[argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_high];
-    if (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_low >= 0)
-      weight += (argmax_w_high - argmax_w) * (argmax_h - argmax_h_low) 
-                * im_data[argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_low];
-    if (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1)
-      weight += (argmax_w - argmax_w_low) * (argmax_h - argmax_h_low) 
-                * im_data[argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_high];
+    if (lll_con)
+      weight += -1 * (argmax_w_high- argmax_w) * (argmax_h_high - argmax_h) * im_data[lll_pos];
+    if (llh_con)
+      weight += -1 * (argmax_w - argmax_w_low) * (argmax_h_high - argmax_h) * im_data[llh_pos];
+    if (lhl_con)
+      weight += -1 * (argmax_w_high - argmax_w) * (argmax_h - argmax_h_low) * im_data[lhl_pos];
+    if (lhh_con)
+      weight += -1 * (argmax_w - argmax_w_low) * (argmax_h - argmax_h_low) * im_data[lhh_pos];
+    if (hll_con)
+      weight += (argmax_w_high - argmax_w) * (argmax_h_high - argmax_h) * im_data[hll_pos];
+    if (hlh_con)
+      weight += (argmax_w - argmax_w_low) * (argmax_h_high - argmax_h) * im_data[hlh_pos];
+    if (hhl_con)
+      weight += (argmax_w_high - argmax_w) * (argmax_h - argmax_h_low) * im_data[hhl_pos];
+    if (hhh_con)
+      weight += (argmax_w - argmax_w_low) * (argmax_h - argmax_h_low) * im_data[hhh_pos];
   }
   else if (bp_dir == 1)
   {
-    if (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_low >= 0)
-      weight += -1 * (argmax_w_high - argmax_w) * (argmax_d_high - argmax_d) 
-                * im_data[argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_low];
-    if (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_high <= width - 1)
-      weight += -1 * (argmax_w - argmax_w_low) * (argmax_d_high - argmax_d) 
-                * im_data[argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_high];
-    if (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_low >= 0)
-      weight += (argmax_w_high - argmax_w) * (argmax_d_high - argmax_d) 
-                * im_data[argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_low];
-    if (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1)
-      weight += (argmax_w - argmax_w_low) * (argmax_d_high - argmax_d) 
-                * im_data[argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_high];
-    if (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_low >= 0)
-      weight += -1 * (argmax_w_high - argmax_w) * (argmax_d - argmax_d_low) 
-                * im_data[argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_low];
-    if (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_high <= width - 1)
-      weight += -1 * (argmax_w - argmax_w_low) * (argmax_d - argmax_d_low) 
-                * im_data[argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_high];
-    if (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_low >= 0)
-      weight += (argmax_w_high - argmax_w) * (argmax_d - argmax_d_low) 
-                * im_data[argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_low];
-    if (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1)
-      weight += (argmax_w - argmax_w_low) * (argmax_d - argmax_d_low) 
-                * im_data[argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_high];
+    if (lll_con)
+      weight += -1 * (argmax_w_high - argmax_w) * (argmax_d_high - argmax_d) * im_data[lll_pos];
+    if (llh_con)
+      weight += -1 * (argmax_w - argmax_w_low) * (argmax_d_high - argmax_d) * im_data[llh_pos];
+    if (lhl_con)
+      weight += (argmax_w_high - argmax_w) * (argmax_d_high - argmax_d) * im_data[lhl_pos];
+    if (lhh_con)
+      weight += (argmax_w - argmax_w_low) * (argmax_d_high - argmax_d) * im_data[lhh_pos];
+    if (hll_con)
+      weight += -1 * (argmax_w_high - argmax_w) * (argmax_d - argmax_d_low) * im_data[hll_pos];
+    if (hlh_con)
+      weight += -1 * (argmax_w - argmax_w_low) * (argmax_d - argmax_d_low)* im_data[hlh_pos];
+    if (hhl_con)
+      weight += (argmax_w_high - argmax_w) * (argmax_d - argmax_d_low) * im_data[hhl_pos];
+    if (hhh_con)
+      weight += (argmax_w - argmax_w_low) * (argmax_d - argmax_d_low) * im_data[hhh_pos];
   }
   else if (bp_dir == 2)
   {
-    if (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_low >= 0)
-      weight += -1 * (argmax_h_high - argmax_h) * (argmax_d_high - argmax_d) 
-                * im_data[argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_low];
-    if (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_high <= width - 1)
-      weight += (argmax_h_high - argmax_h) * (argmax_d_high - argmax_d) 
-                * im_data[argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_high];
-    if (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_low >= 0)
-      weight += -1 * (argmax_h - argmax_h_low) * (argmax_d_high - argmax_d) 
-                * im_data[argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_low];
-    if (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1)
-      weight += (argmax_h - argmax_h_low) * (argmax_d_high - argmax_d) 
-                * im_data[argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_high];
-    if (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_low >= 0)
-      weight += -1 * (argmax_h_high - argmax_h) * (argmax_d - argmax_d_low) 
-                * im_data[argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_low];
-    if (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_high <= width - 1)
-      weight += (argmax_h_high - argmax_h) * (argmax_d - argmax_d_low) 
-                * im_data[argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_high];
-    if (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_low >= 0)
-      weight += -1 * (argmax_h - argmax_h_low) * (argmax_d - argmax_d_low) 
-                * im_data[argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_low];
-    if (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1)
-      weight += (argmax_h - argmax_h_low) * (argmax_d - argmax_d_low) 
-                * im_data[argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_high];
+    if (lll_con)
+      weight += -1 * (argmax_h_high - argmax_h) * (argmax_d_high - argmax_d) * im_data[lll_pos];
+    if (llh_con)
+      weight += (argmax_h_high - argmax_h) * (argmax_d_high - argmax_d) * im_data[llh_pos];
+    if (lhl_con)
+      weight += -1 * (argmax_h - argmax_h_low) * (argmax_d_high - argmax_d) * im_data[lhl_pos];
+    if (lhh_con)
+      weight += (argmax_h - argmax_h_low) * (argmax_d_high - argmax_d) * im_data[lhh_pos];
+    if (hll_con)
+      weight += -1 * (argmax_h_high - argmax_h) * (argmax_d - argmax_d_low) * im_data[hll_pos];
+    if (hlh_con)
+      weight += (argmax_h_high - argmax_h) * (argmax_d - argmax_d_low) * im_data[hlh_pos];
+    if (hhl_con)
+      weight += -1 * (argmax_h - argmax_h_low) * (argmax_d - argmax_d_low) * im_data[hhl_pos];
+    if (hhh_con)
+      weight += (argmax_h - argmax_h_low) * (argmax_d - argmax_d_low) * im_data[hhh_pos];
   }
+
+  // if (bp_dir == 0)
+  // {
+  //   if (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_low >= 0)
+  //     weight += -1 * (argmax_w_high- argmax_w) * (argmax_h_high - argmax_h) 
+  //               * im_data[argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_low];
+  //   if (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_high <= width - 1)
+  //     weight += -1 * (argmax_w - argmax_w_low) * (argmax_h_high - argmax_h) 
+  //               * im_data[argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_high];
+  //   if (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_low >= 0)
+  //     weight += -1 * (argmax_w_high - argmax_w) * (argmax_h - argmax_h_low) 
+  //               * im_data[argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_low];
+  //   if (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1)
+  //     weight += -1 * (argmax_w - argmax_w_low) * (argmax_h - argmax_h_low) 
+  //               * im_data[argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_high];
+  //   if (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_low >= 0)
+  //     weight += (argmax_w_high - argmax_w) * (argmax_h_high - argmax_h) 
+  //               * im_data[argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_low];
+  //   if (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_high <= width - 1)
+  //     weight += (argmax_w - argmax_w_low) * (argmax_h_high - argmax_h) 
+  //               * im_data[argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_high];
+  //   if (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_low >= 0)
+  //     weight += (argmax_w_high - argmax_w) * (argmax_h - argmax_h_low) 
+  //               * im_data[argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_low];
+  //   if (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1)
+  //     weight += (argmax_w - argmax_w_low) * (argmax_h - argmax_h_low) 
+  //               * im_data[argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_high];
+  // }
+  // else if (bp_dir == 1)
+  // {
+  //   if (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_low >= 0)
+  //     weight += -1 * (argmax_w_high - argmax_w) * (argmax_d_high - argmax_d) 
+  //               * im_data[argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_low];
+  //   if (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_high <= width - 1)
+  //     weight += -1 * (argmax_w - argmax_w_low) * (argmax_d_high - argmax_d) 
+  //               * im_data[argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_high];
+  //   if (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_low >= 0)
+  //     weight += (argmax_w_high - argmax_w) * (argmax_d_high - argmax_d) 
+  //               * im_data[argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_low];
+  //   if (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1)
+  //     weight += (argmax_w - argmax_w_low) * (argmax_d_high - argmax_d) 
+  //               * im_data[argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_high];
+  //   if (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_low >= 0)
+  //     weight += -1 * (argmax_w_high - argmax_w) * (argmax_d - argmax_d_low) 
+  //               * im_data[argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_low];
+  //   if (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_high <= width - 1)
+  //     weight += -1 * (argmax_w - argmax_w_low) * (argmax_d - argmax_d_low) 
+  //               * im_data[argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_high];
+  //   if (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_low >= 0)
+  //     weight += (argmax_w_high - argmax_w) * (argmax_d - argmax_d_low) 
+  //               * im_data[argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_low];
+  //   if (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1)
+  //     weight += (argmax_w - argmax_w_low) * (argmax_d - argmax_d_low) 
+  //               * im_data[argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_high];
+  // }
+  // else if (bp_dir == 2)
+  // {
+  //   if (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_low >= 0)
+  //     weight += -1 * (argmax_h_high - argmax_h) * (argmax_d_high - argmax_d) 
+  //               * im_data[argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_low];
+  //   if (argmax_d_low >= 0 && argmax_h_low >= 0 && argmax_w_high <= width - 1)
+  //     weight += (argmax_h_high - argmax_h) * (argmax_d_high - argmax_d) 
+  //               * im_data[argmax_d_low * data_height * data_width + argmax_h_low * data_width + argmax_w_high];
+  //   if (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_low >= 0)
+  //     weight += -1 * (argmax_h - argmax_h_low) * (argmax_d_high - argmax_d) 
+  //               * im_data[argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_low];
+  //   if (argmax_d_low >= 0 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1)
+  //     weight += (argmax_h - argmax_h_low) * (argmax_d_high - argmax_d) 
+  //               * im_data[argmax_d_low * data_height * data_width + argmax_h_high * data_width + argmax_w_high];
+  //   if (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_low >= 0)
+  //     weight += -1 * (argmax_h_high - argmax_h) * (argmax_d - argmax_d_low) 
+  //               * im_data[argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_low];
+  //   if (argmax_d_high <= depth - 1 && argmax_h_low >= 0 && argmax_w_high <= width - 1)
+  //     weight += (argmax_h_high - argmax_h) * (argmax_d - argmax_d_low) 
+  //               * im_data[argmax_d_high * data_height * data_width + argmax_h_low * data_width + argmax_w_high];
+  //   if (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_low >= 0)
+  //     weight += -1 * (argmax_h - argmax_h_low) * (argmax_d - argmax_d_low) 
+  //               * im_data[argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_low];
+  //   if (argmax_d_high <= depth - 1 && argmax_h_high <= height - 1 && argmax_w_high <= width - 1)
+  //     weight += (argmax_h - argmax_h_low) * (argmax_d - argmax_d_low) 
+  //               * im_data[argmax_d_high * data_height * data_width + argmax_h_high * data_width + argmax_w_high];
+  // }
 
   return weight;
 }
@@ -465,7 +522,7 @@ void deformable_3d_im2col_cuda(cudaStream_t stream,
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess)
   {
-    printf("error in deformable_im2col_cuda: %s\n", cudaGetErrorString(err));
+    printf("error in deformable_3d_im2col_cuda: %s\n", cudaGetErrorString(err));
   }
 
 }
@@ -497,7 +554,7 @@ void deformable_3d_col2im_cuda(cudaStream_t stream,
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess)
   {
-    printf("error in deformable_col2im_cuda: %s\n", cudaGetErrorString(err));
+    printf("error in deformable_3d_col2im_cuda: %s\n", cudaGetErrorString(err));
   }
 
 }
@@ -530,6 +587,6 @@ void deformable_3d_col2im_coord_cuda(cudaStream_t stream,
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess)
   {
-    printf("error in deformable_col2im_coord_cuda: %s\n", cudaGetErrorString(err));
+    printf("error in deformable_3d_col2im_coord_cuda: %s\n", cudaGetErrorString(err));
   }
 }
