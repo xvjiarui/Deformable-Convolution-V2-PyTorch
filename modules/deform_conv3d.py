@@ -84,7 +84,7 @@ class DeformConv3dPack(DeformConv3d):
         self.conv_offset.inited = True
         self.init_offset()
         self.dim_mask = np.tile(np.repeat(np.array(dim_mask), self.kernel_size[0] * self.kernel_size[1] * self.kernel_size[2]), self.deformable_groups)
-        self.dim_mask = torch.from_numpy(self.dim_mask).view(1, out_channels, 1, 1, 1).float().cuda()
+        self.dim_mask = torch.from_numpy(self.dim_mask).view(1, out_channels, 1, 1, 1).float()
 
     def init_offset(self):
         self.conv_offset.weight.data.zero_()
@@ -92,7 +92,7 @@ class DeformConv3dPack(DeformConv3d):
 
     def forward(self, input):
         offset = self.conv_offset(input)
-        offset = offset * self.dim_mask
+        offset = offset * self.dim_mask.cuda(input.get_device(), non_blocking=True)
         return DeformConv3dFunction.apply(input, offset, 
                                           self.weight, 
                                           self.bias, 
