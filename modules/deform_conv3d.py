@@ -8,6 +8,7 @@ import math
 from torch import nn
 from torch.nn import init
 from torch.nn.modules.utils import _triple
+import numpy as np
 
 from ..functions.deform_conv3d_func import DeformConv3dFunction
 
@@ -68,7 +69,7 @@ class DeformConv3dPack(DeformConv3d):
 
     def __init__(self, in_channels, out_channels,
                  kernel_size, stride, padding,
-                 dilation=1, groups=1, deformable_groups=1, im2col_step=64, bias=True, lr_mult=0.1):
+                 dilation=1, groups=1, deformable_groups=1, im2col_step=64, bias=True, lr_mult=0.1, dim_mask=(1, 1, 1)):
         super(DeformConv3dPack, self).__init__(in_channels, out_channels,
                                   kernel_size, stride, padding, dilation, groups, deformable_groups, im2col_step, bias)
 
@@ -82,6 +83,8 @@ class DeformConv3dPack(DeformConv3d):
         self.conv_offset.lr_mult = lr_mult
         self.conv_offset.inited = True
         self.init_offset()
+        self.dim_mask = np.tile(np.repeat(np.array(dim_mask), self.kernel_size[0] * self.kernel_size[1] * self.kernel_size[2]), self.deformable_groups)
+        self.dim_mask = torch.from_numpy(self.dim_mask).view(1, out_channels, 1, 1, 1).float().cuda()
 
     def init_offset(self):
         self.conv_offset.weight.data.zero_()
@@ -89,6 +92,7 @@ class DeformConv3dPack(DeformConv3d):
 
     def forward(self, input):
         offset = self.conv_offset(input)
+        offset = offset * self.dim_mask
         return DeformConv3dFunction.apply(input, offset, 
                                           self.weight, 
                                           self.bias, 
