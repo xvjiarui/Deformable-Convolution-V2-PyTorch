@@ -69,16 +69,23 @@ class DeformConv3dPack(DeformConv3d):
 
     def __init__(self, in_channels, out_channels,
                  kernel_size, stride, padding,
-                 dilation=1, groups=1, deformable_groups=1, im2col_step=64, bias=True, lr_mult=0.1, dim_mask=(1, 1, 1)):
+                 dilation=1, groups=1, deformable_groups=1, im2col_step=64, bias=True, lr_mult=0.1, dim_mask=(1, 1, 1), offset_kernel_size=None):
         super(DeformConv3dPack, self).__init__(in_channels, out_channels,
                                   kernel_size, stride, padding, dilation, groups, deformable_groups, im2col_step, bias)
 
         out_channels = self.deformable_groups * 3 * self.kernel_size[0] * self.kernel_size[1] * self.kernel_size[2]
+        if offset_kernel_size is None: 
+            offset_kernel_size = self.kernel_size
+            offset_stride = self.stride
+            offset_padding = self.padding
+        else:
+            offset_stride = (1, 1, 1)
+            offset_padding = ((offset_kernel_size[0]-1)//2, (offset_kernel_size[1]-1)//2, (offset_kernel_size[2]-1)//2)
         self.conv_offset = nn.Conv3d(self.in_channels,
                                           out_channels,
-                                          kernel_size=self.kernel_size,
-                                          stride=self.stride,
-                                          padding=self.padding,
+                                          kernel_size=offset_kernel_size,
+                                          stride=offset_stride,
+                                          padding=offset_padding,
                                           bias=True)
         self.conv_offset.lr_mult = lr_mult
         self.conv_offset.inited = True
