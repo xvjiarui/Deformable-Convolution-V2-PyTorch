@@ -10,7 +10,7 @@ from torch.nn import init
 from torch.nn.modules.utils import _triple
 import numpy as np
 
-from ..functions.deform_conv3d_func import DeformConv3dFunction
+from functions.deform_conv3d_func import DeformConv3dFunction
 
 class DeformConv3d(nn.Module):
 

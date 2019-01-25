@@ -9,7 +9,7 @@ from torch import nn
 from torch.nn import init
 from torch.nn.modules.utils import _pair
 
-from ..functions.deform_conv2d_func import DeformConv2dFunction
+from functions.deform_conv2d_func import DeformConv2dFunction
 
 class DeformConv2d(nn.Module):
 
