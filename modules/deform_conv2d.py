@@ -39,6 +39,7 @@ class DeformConv2d(nn.Module):
         self.reset_parameters()
         if not self.use_bias:
             self.bias.requires_grad = False
+            self.bias.data.zero_()
 
     def reset_parameters(self):
         n = self.in_channels
