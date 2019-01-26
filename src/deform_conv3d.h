@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cpu/deform_conv_cpu.h"
+#include "cpu/deform_conv3d_cpu.h"
 
 #ifdef WITH_CUDA
 #include "cuda/deform_conv3d_cuda.h"

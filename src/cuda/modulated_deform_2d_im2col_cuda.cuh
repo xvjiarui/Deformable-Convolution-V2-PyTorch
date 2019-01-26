@@ -20,9 +20,10 @@ inline int GET_BLOCKS(const int N)
   return (N + CUDA_NUM_THREADS - 1) / CUDA_NUM_THREADS;
 }
 
+
 template <typename scalar_t>
-__device__ scalar_t dmcn_im2col_bilinear(const scalar_t *bottom_data, const int data_width,
-                                      const int height, const int width, scalar_t h, scalar_t w)
+__device__ scalar_t mdmcn_2d_im2col_bilinear(const scalar_t *bottom_data, const int data_width,
+                                             const int height, const int width, scalar_t h, scalar_t w)
 {
   int h_low = floor(h);
   int w_low = floor(w);
@@ -53,7 +54,7 @@ __device__ scalar_t dmcn_im2col_bilinear(const scalar_t *bottom_data, const int 
 }
 
 template <typename scalar_t>
-__device__ scalar_t dmcn_get_gradient_weight(scalar_t argmax_h, scalar_t argmax_w,
+__device__ scalar_t mdmcn_2d_get_gradient_weight(scalar_t argmax_h, scalar_t argmax_w,
                                           const int h, const int w, const int height, const int width)
 {
   if (argmax_h <= -1 || argmax_h >= height || argmax_w <= -1 || argmax_w >= width)
@@ -80,7 +81,7 @@ __device__ scalar_t dmcn_get_gradient_weight(scalar_t argmax_h, scalar_t argmax_
 }
 
 template <typename scalar_t>
-__device__ scalar_t dmcn_get_coordinate_weight(scalar_t argmax_h, scalar_t argmax_w,
+__device__ scalar_t mdmcn_2d_get_coordinate_weight(scalar_t argmax_h, scalar_t argmax_w,
                                             const int height, const int width, const scalar_t *im_data,
                                             const int data_width, const int bp_dir)
 {
@@ -124,16 +125,19 @@ __device__ scalar_t dmcn_get_coordinate_weight(scalar_t argmax_h, scalar_t argma
 }
 
 template <typename scalar_t>
-__global__ void deformable_im2col_gpu_kernel(const int n,
-                                                       const scalar_t *data_im, const scalar_t *data_offset,
-                                                       const int height, const int width, const int kernel_h, const int kernel_w,
-                                                       const int pad_h, const int pad_w,
-                                                       const int stride_h, const int stride_w,
-                                                       const int dilation_h, const int dilation_w,
-                                                       const int channel_per_deformable_group,
-                                                       const int batch_size, const int num_channels, const int deformable_group,
-                                                       const int height_col, const int width_col,
-                                                       scalar_t *data_col)
+__global__ void modulated_deformable_2d_im2col_gpu_kernel(const int n,
+                                                          const scalar_t *data_im, const scalar_t *data_offset,
+                                                          const scalar_t *data_mask,
+                                                          const int height, const int width, const int kernel_h,
+                                                          const int kernel_w,
+                                                          const int pad_h, const int pad_w,
+                                                          const int stride_h, const int stride_w,
+                                                          const int dilation_h, const int dilation_w,
+                                                          const int channel_per_deformable_group,
+                                                          const int batch_size, const int num_channels,
+                                                          const int deformable_group,
+                                                          const int height_col, const int width_col,
+                                                          scalar_t *data_col)
 {
   // launch channels * batch_size * height_col * width_col cores
   CUDA_KERNEL_LOOP(index, n)
@@ -157,9 +161,11 @@ __global__ void deformable_im2col_gpu_kernel(const int n,
     const int w_in = w_col * stride_w - pad_w;
 
      scalar_t *data_col_ptr = data_col + ((c_col * batch_size + b_col) * height_col + h_col) * width_col + w_col;
-    // const scalar_t* data_im_ptr = data_im + ((b_col * num_channels + c_im) * height + h_in) * width + w_in;
+    //const scalar_t* data_im_ptr = data_im + ((b_col * num_channels + c_im) * height + h_in) * width + w_in;
     const scalar_t *data_im_ptr = data_im + (b_col * num_channels + c_im) * height * width;
     const scalar_t *data_offset_ptr = data_offset + (b_col * deformable_group + deformable_group_index) * 2 * kernel_h * kernel_w * height_col * width_col;
+
+    const scalar_t *data_mask_ptr = data_mask + (b_col * deformable_group + deformable_group_index) * kernel_h * kernel_w * height_col * width_col;
 
     for (int i = 0; i < kernel_h; ++i)
     {
@@ -167,8 +173,10 @@ __global__ void deformable_im2col_gpu_kernel(const int n,
       {
         const int data_offset_h_ptr = ((2 * (i * kernel_w + j)) * height_col + h_col) * width_col + w_col;
         const int data_offset_w_ptr = ((2 * (i * kernel_w + j) + 1) * height_col + h_col) * width_col + w_col;
+        const int data_mask_hw_ptr = ((i * kernel_w + j) * height_col + h_col) * width_col + w_col;
         const scalar_t offset_h = data_offset_ptr[data_offset_h_ptr];
         const scalar_t offset_w = data_offset_ptr[data_offset_w_ptr];
+        const scalar_t mask = data_mask_ptr[data_mask_hw_ptr];
         scalar_t val = static_cast<scalar_t>(0);
         const scalar_t h_im = h_in + i * dilation_h + offset_h;
         const scalar_t w_im = w_in + j * dilation_w + offset_w;
@@ -179,9 +187,9 @@ __global__ void deformable_im2col_gpu_kernel(const int n,
           //const int cur_height = height - h_in;
           //const int cur_width = width - w_in;
           //val = dmcn_im2col_bilinear(data_im_ptr, width, cur_height, cur_width, map_h, map_w);
-          val = dmcn_im2col_bilinear(data_im_ptr, width, height, width, h_im, w_im);
+          val = mdmcn_2d_im2col_bilinear(data_im_ptr, width, height, width, h_im, w_im);
         }
-        *data_col_ptr = val;
+        *data_col_ptr = val * mask;
         data_col_ptr += batch_size * height_col * width_col;
       }
     }
@@ -189,17 +197,18 @@ __global__ void deformable_im2col_gpu_kernel(const int n,
 }
 
 template <typename scalar_t>
-__global__ void deformable_col2im_gpu_kernel(const int n,
-                                                       const scalar_t *data_col, const scalar_t *data_offset,
-                                                       const int channels, const int height, const int width,
-                                                       const int kernel_h, const int kernel_w,
-                                                       const int pad_h, const int pad_w,
-                                                       const int stride_h, const int stride_w,
-                                                       const int dilation_h, const int dilation_w,
-                                                       const int channel_per_deformable_group,
-                                                       const int batch_size, const int deformable_group,
-                                                       const int height_col, const int width_col,
-                                                       scalar_t *grad_im)
+__global__ void modulated_deformable_2d_col2im_gpu_kernel(const int n,
+                                                          const scalar_t *data_col, const scalar_t *data_offset,
+                                                          const scalar_t *data_mask,
+                                                          const int channels, const int height, const int width,
+                                                          const int kernel_h, const int kernel_w,
+                                                          const int pad_h, const int pad_w,
+                                                          const int stride_h, const int stride_w,
+                                                          const int dilation_h, const int dilation_w,
+                                                          const int channel_per_deformable_group,
+                                                          const int batch_size, const int deformable_group,
+                                                          const int height_col, const int width_col,
+                                                          scalar_t *grad_im)
 {
   CUDA_KERNEL_LOOP(index, n)
   {
@@ -217,14 +226,17 @@ __global__ void deformable_col2im_gpu_kernel(const int n,
     int h_in = h_out * stride_h - pad_h;
 
     const scalar_t *data_offset_ptr = data_offset + (b * deformable_group + deformable_group_index) * 2 * kernel_h * kernel_w * height_col * width_col;
+    const scalar_t *data_mask_ptr = data_mask + (b * deformable_group + deformable_group_index) * kernel_h * kernel_w * height_col * width_col;
     const int data_offset_h_ptr = ((2 * (i * kernel_w + j)) * height_col + h_out) * width_col + w_out;
     const int data_offset_w_ptr = ((2 * (i * kernel_w + j) + 1) * height_col + h_out) * width_col + w_out;
+    const int data_mask_hw_ptr = ((i * kernel_w + j) * height_col + h_out) * width_col + w_out;
     const scalar_t offset_h = data_offset_ptr[data_offset_h_ptr];
     const scalar_t offset_w = data_offset_ptr[data_offset_w_ptr];
+    const scalar_t mask = data_mask_ptr[data_mask_hw_ptr];
     const scalar_t cur_inv_h_data = h_in + i * dilation_h + offset_h;
     const scalar_t cur_inv_w_data = w_in + j * dilation_w + offset_w;
 
-    const scalar_t cur_top_grad = data_col[index];
+    const scalar_t cur_top_grad = data_col[index] * mask;
     const int cur_h = (int)cur_inv_h_data;
     const int cur_w = (int)cur_inv_w_data;
     for (int dy = -2; dy <= 2; dy++)
@@ -237,7 +249,7 @@ __global__ void deformable_col2im_gpu_kernel(const int n,
             abs(cur_inv_w_data - (cur_w + dx)) < 1)
         {
           int cur_bottom_grad_pos = ((b * channels + c) * height + cur_h + dy) * width + cur_w + dx;
-          scalar_t weight = dmcn_get_gradient_weight(cur_inv_h_data, cur_inv_w_data, cur_h + dy, cur_w + dx, height, width);
+          scalar_t weight = mdmcn_2d_get_gradient_weight(cur_inv_h_data, cur_inv_w_data, cur_h + dy, cur_w + dx, height, width);
           atomicAdd(grad_im + cur_bottom_grad_pos, weight * cur_top_grad);
         }
       }
@@ -246,22 +258,23 @@ __global__ void deformable_col2im_gpu_kernel(const int n,
 }
 
 template <typename scalar_t>
-__global__ void deformable_col2im_coord_gpu_kernel(const int n,
-                                                             const scalar_t *data_col, const scalar_t *data_im,
-                                                             const scalar_t *data_offset,
-                                                             const int channels, const int height, const int width,
-                                                             const int kernel_h, const int kernel_w,
-                                                             const int pad_h, const int pad_w,
-                                                             const int stride_h, const int stride_w,
-                                                             const int dilation_h, const int dilation_w,
-                                                             const int channel_per_deformable_group,
-                                                             const int batch_size, const int offset_channels, const int deformable_group,
-                                                             const int height_col, const int width_col,
-                                                             scalar_t *grad_offset)
+__global__ void modulated_deformable_2d_col2im_coord_gpu_kernel(const int n,
+                                                                const scalar_t *data_col, const scalar_t *data_im,
+                                                                const scalar_t *data_offset, const scalar_t *data_mask,
+                                                                const int channels, const int height, const int width,
+                                                                const int kernel_h, const int kernel_w,
+                                                                const int pad_h, const int pad_w,
+                                                                const int stride_h, const int stride_w,
+                                                                const int dilation_h, const int dilation_w,
+                                                                const int channel_per_deformable_group,
+                                                                const int batch_size, const int offset_channels,
+                                                                const int deformable_group,
+                                                                const int height_col, const int width_col,
+                                                                scalar_t *grad_offset, scalar_t *grad_mask)
 {
   CUDA_KERNEL_LOOP(index, n)
   {
-    scalar_t val = 0;
+    scalar_t val = 0, mval = 0;
     int w = index % width_col;
     int h = (index / width_col) % height_col;
     int c = (index / width_col / height_col) % offset_channels;
@@ -274,6 +287,7 @@ __global__ void deformable_col2im_coord_gpu_kernel(const int n,
     const scalar_t *data_col_ptr = data_col + deformable_group_index * channel_per_deformable_group * batch_size * width_col * height_col;
     const scalar_t *data_im_ptr = data_im + (b * deformable_group + deformable_group_index) * channel_per_deformable_group / kernel_h / kernel_w * height * width;
     const scalar_t *data_offset_ptr = data_offset + (b * deformable_group + deformable_group_index) * 2 * kernel_h * kernel_w * height_col * width_col;
+    const scalar_t *data_mask_ptr = data_mask + (b * deformable_group + deformable_group_index) * kernel_h * kernel_w * height_col * width_col;
 
     const int offset_c = c - deformable_group_index * 2 * kernel_h * kernel_w;
 
@@ -290,99 +304,117 @@ __global__ void deformable_col2im_coord_gpu_kernel(const int n,
       int h_in = h_out * stride_h - pad_h;
       const int data_offset_h_ptr = (((2 * (i * kernel_w + j)) * height_col + h_out) * width_col + w_out);
       const int data_offset_w_ptr = (((2 * (i * kernel_w + j) + 1) * height_col + h_out) * width_col + w_out);
+      const int data_mask_hw_ptr = (((i * kernel_w + j) * height_col + h_out) * width_col + w_out);
       const scalar_t offset_h = data_offset_ptr[data_offset_h_ptr];
       const scalar_t offset_w = data_offset_ptr[data_offset_w_ptr];
+      const scalar_t mask = data_mask_ptr[data_mask_hw_ptr];
       scalar_t inv_h = h_in + i * dilation_h + offset_h;
       scalar_t inv_w = w_in + j * dilation_w + offset_w;
       if (inv_h <= -1 || inv_w <= -1 || inv_h >= height || inv_w >= width)
       {
         inv_h = inv_w = -2;
       }
-      const scalar_t weight = dmcn_get_coordinate_weight(
+      else
+      {
+        mval += data_col_ptr[col_pos] * mdmcn_2d_im2col_bilinear(data_im_ptr + cnt * height * width, width, height, width, inv_h, inv_w);
+      }
+      const scalar_t weight = mdmcn_2d_get_coordinate_weight(
           inv_h, inv_w,
           height, width, data_im_ptr + cnt * height * width, width, bp_dir);
-      val += weight * data_col_ptr[col_pos];
+      val += weight * data_col_ptr[col_pos] * mask;
       cnt += 1;
     }
     // KERNEL_ASSIGN(grad_offset[index], offset_req, val);
     grad_offset[index] = val;
+    if (offset_c % 2 == 0)
+      // KERNEL_ASSIGN(grad_mask[(((b * deformable_group + deformable_group_index) * kernel_h * kernel_w + offset_c / 2) * height_col + h) * width_col + w], mask_req, mval);
+      grad_mask[(((b * deformable_group + deformable_group_index) * kernel_h * kernel_w + offset_c / 2) * height_col + h) * width_col + w] = mval;
   }
 }
 
 template <typename scalar_t>
-void deformable_im2col_cuda(cudaStream_t stream,
-  const scalar_t* data_im, const scalar_t* data_offset,
-  const int batch_size, const int channels, const int height_im, const int width_im, 
-  const int height_col, const int width_col, const int kernel_h, const int kernel_w,
-  const int pad_h, const int pad_w, const int stride_h, const int stride_w, 
-  const int dilation_h, const int dilation_w,
-  const int deformable_group, scalar_t* data_col) {
+void modulated_deformable_2d_im2col_cuda(cudaStream_t stream,
+                                         const scalar_t *data_im, const scalar_t *data_offset,
+                                         const scalar_t *data_mask,
+                                         const int batch_size, const int channels, const int height_im,
+                                         const int width_im,
+                                         const int height_col, const int width_col, const int kernel_h,
+                                         const int kernel_w,
+                                         const int pad_h, const int pad_w, const int stride_h, const int stride_w,
+                                         const int dilation_h, const int dilation_w,
+                                         const int deformable_group, scalar_t *data_col) {
   // num_axes should be smaller than block size
   const int channel_per_deformable_group = channels / deformable_group;
   const int num_kernels = channels * batch_size * height_col * width_col;
-  deformable_im2col_gpu_kernel<scalar_t>
+  modulated_deformable_2d_im2col_gpu_kernel<scalar_t>
       <<<GET_BLOCKS(num_kernels), CUDA_NUM_THREADS,
           0, stream>>>(
-      num_kernels, data_im, data_offset, height_im, width_im, kernel_h, kernel_w,
+      num_kernels, data_im, data_offset, data_mask, height_im, width_im, kernel_h, kernel_w,
       pad_h, pad_w, stride_h, stride_w, dilation_h, dilation_w, channel_per_deformable_group,
       batch_size, channels, deformable_group, height_col, width_col, data_col);
   
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess)
   {
-    printf("error in deformable_im2col_cuda: %s\n", cudaGetErrorString(err));
+    printf("error in modulated_deformable_im2col_cuda: %s\n", cudaGetErrorString(err));
   }
 
 }
 
 template <typename scalar_t>
-void deformable_col2im_cuda(cudaStream_t stream,
-  const scalar_t* data_col, const scalar_t* data_offset,
-  const int batch_size, const int channels, const int height_im, const int width_im, 
-  const int height_col, const int width_col, const int kernel_h, const int kernel_w,
-  const int pad_h, const int pad_w, const int stride_h, const int stride_w, 
-  const int dilation_h, const int dilation_w, 
-  const int deformable_group, scalar_t* grad_im){
+void modulated_deformable_2d_col2im_cuda(cudaStream_t stream,
+                                         const scalar_t *data_col, const scalar_t *data_offset,
+                                         const scalar_t *data_mask,
+                                         const int batch_size, const int channels, const int height_im,
+                                         const int width_im,
+                                         const int height_col, const int width_col, const int kernel_h,
+                                         const int kernel_w,
+                                         const int pad_h, const int pad_w, const int stride_h, const int stride_w,
+                                         const int dilation_h, const int dilation_w,
+                                         const int deformable_group, scalar_t *grad_im){
 
   const int channel_per_deformable_group = channels / deformable_group;
   const int num_kernels = channels * kernel_h * kernel_w * batch_size * height_col * width_col;
-  deformable_col2im_gpu_kernel<scalar_t>
+  modulated_deformable_2d_col2im_gpu_kernel<scalar_t>
       <<<GET_BLOCKS(num_kernels), CUDA_NUM_THREADS,
           0, stream>>>(
-        num_kernels, data_col, data_offset, channels, height_im, width_im,
+        num_kernels, data_col, data_offset, data_mask, channels, height_im, width_im,
         kernel_h, kernel_w, pad_h, pad_h, stride_h, stride_w,
         dilation_h, dilation_w, channel_per_deformable_group,
         batch_size, deformable_group, height_col, width_col, grad_im);
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess)
   {
-    printf("error in deformable_col2im_cuda: %s\n", cudaGetErrorString(err));
+    printf("error in modulated_deformable_col2im_cuda: %s\n", cudaGetErrorString(err));
   }
 
 }
 
 template <typename scalar_t>
-void deformable_col2im_coord_cuda(cudaStream_t stream,
-  const scalar_t* data_col, const scalar_t* data_im, const scalar_t* data_offset,
-  const int batch_size, const int channels, const int height_im, const int width_im, 
-  const int height_col, const int width_col, const int kernel_h, const int kernel_w,
-  const int pad_h, const int pad_w, const int stride_h, const int stride_w, 
-  const int dilation_h, const int dilation_w, 
-  const int deformable_group,
-  scalar_t* grad_offset) {
+void modulated_deformable_2d_col2im_coord_cuda(cudaStream_t stream,
+                                               const scalar_t *data_col, const scalar_t *data_im,
+                                               const scalar_t *data_offset, const scalar_t *data_mask,
+                                               const int batch_size, const int channels, const int height_im,
+                                               const int width_im,
+                                               const int height_col, const int width_col, const int kernel_h,
+                                               const int kernel_w,
+                                               const int pad_h, const int pad_w, const int stride_h, const int stride_w,
+                                               const int dilation_h, const int dilation_w,
+                                               const int deformable_group,
+                                               scalar_t *grad_offset, scalar_t *grad_mask) {
   const int num_kernels = batch_size * height_col * width_col * 2 * kernel_h * kernel_w * deformable_group;
   const int channel_per_deformable_group = channels * kernel_h * kernel_w / deformable_group;
-  deformable_col2im_coord_gpu_kernel<scalar_t>
+  modulated_deformable_2d_col2im_coord_gpu_kernel<scalar_t>
       <<<GET_BLOCKS(num_kernels), CUDA_NUM_THREADS,
         0, stream>>>(
-        num_kernels, data_col, data_im, data_offset, channels, height_im, width_im,
+        num_kernels, data_col, data_im, data_offset, data_mask, channels, height_im, width_im,
         kernel_h, kernel_w, pad_h, pad_w, stride_h, stride_w,
         dilation_h, dilation_w, channel_per_deformable_group,
         batch_size, 2 * kernel_h * kernel_w * deformable_group, deformable_group, height_col, width_col, 
-        grad_offset);
+        grad_offset, grad_mask);
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess)
   {
-    printf("error in deformable_col2im_coord_cuda: %s\n", cudaGetErrorString(err));
+    printf("error in modulated_deformable_col2im_coord_cuda: %s\n", cudaGetErrorString(err));
   }
 }

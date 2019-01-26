@@ -23,7 +23,7 @@ class DeformConv2dFunction(Function):
         ctx.group = group
         ctx.deformable_groups = deformable_groups
         ctx.im2col_step = im2col_step
-        output = DCN.deform_conv_forward(input, weight, bias,
+        output = DCN.deform_conv2d_forward(input, weight, bias,
                                          offset,
                                          ctx.kernel_size[0], ctx.kernel_size[1],
                                          ctx.stride[0], ctx.stride[1],
@@ -40,7 +40,7 @@ class DeformConv2dFunction(Function):
     def backward(ctx, grad_output):
         input, offset, weight, bias = ctx.saved_tensors
         grad_input, grad_offset, grad_weight, grad_bias = \
-            DCN.deform_conv_backward(input, weight,
+            DCN.deform_conv2d_backward(input, weight,
                                      bias,
                                      offset,
                                      grad_output,
