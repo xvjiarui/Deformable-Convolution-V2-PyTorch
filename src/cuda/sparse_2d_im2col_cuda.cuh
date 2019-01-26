@@ -143,12 +143,12 @@ __global__ void sparse_2d_im2col_gpu_kernel(const int n,
     // here columns is of shape (c*kn, N, oh, ow), need to adapt axis
 
     // index index of output matrix
+    const int kernel_n = num_pts;
     const int w_col = index % width_col;
     const int h_col = (index / width_col) % height_col;
     const int b_col = (index / width_col / height_col) % batch_size;
     const int c_im = (index / width_col / height_col) / batch_size;
-    const int c_col = c_im * kernel_h * kernel_w;
-    const int kernel_n = num_pts;
+    const int c_col = c_im * kernel_n;
 
     // compute deformable group index
     const int deformable_group_index = c_im / channel_per_deformable_group;
@@ -199,7 +199,7 @@ __global__ void sparse_2d_col2im_gpu_kernel(const int n,
   {
     const int kernel_n = num_pts;
     const int m = (index / width_col / height_col / batch_size) % kernel_n;
-    const int c = index / width_col / height_col / batch_size / kernel_w / kernel_h;
+    const int c = index / width_col / height_col / batch_size / kernel_n;
     // compute the start and end of the output
 
     const int deformable_group_index = c / channel_per_deformable_group;
@@ -270,7 +270,7 @@ __global__ void sparse_2d_col2im_coord_gpu_kernel(const int n,
     const int col_step = kernel_n;
     int cnt = 0;
     const scalar_t *data_col_ptr = data_col + deformable_group_index * channel_per_deformable_group * batch_size * width_col * height_col;
-    const scalar_t *data_im_ptr = data_im + (b * deformable_group + deformable_group_index) * channel_per_deformable_group / kernel_h / kernel_w * height * width;
+    const scalar_t *data_im_ptr = data_im + (b * deformable_group + deformable_group_index) * channel_per_deformable_group / kernel_n * height * width;
     const scalar_t *data_offset_ptr = data_offset + (b * deformable_group + deformable_group_index) * 2 * kernel_n * height_col * width_col;
 
     const int offset_c = c - deformable_group_index * 2 * kernel_n;
@@ -372,7 +372,7 @@ void sparse_2d_col2im_coord_cuda(cudaStream_t stream,
                                  scalar_t *grad_offset) {
   const int kernel_n = num_pts;
   const int num_kernels = batch_size * height_col * width_col * 2 * kernel_n * deformable_group;
-  const int channel_per_deformable_group = channels * kernel_h * kernel_w / deformable_group;
+  const int channel_per_deformable_group = channels * kernel_n / deformable_group;
   sparse_2d_col2im_coord_gpu_kernel<scalar_t>
       <<<GET_BLOCKS(num_kernels), CUDA_NUM_THREADS,
         0, stream>>>(

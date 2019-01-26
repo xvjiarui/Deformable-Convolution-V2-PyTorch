@@ -57,7 +57,7 @@ def check_sconv_im2col_step_forward():
 
     d = (output1 - output2).abs().max()
     if d < 1e-10:
-        print('sconv im2col_step forward passed with {}'.format(d))
+        print('sconv im2col_step forward successfully passed with {}'.format(d))
     else:
         print('sconv im2col_step forward failed with {}'.format(d))
         print(output1)
@@ -98,7 +98,7 @@ def check_sconv_im2col_step_backward():
     bias_grad_err = (bias.grad - 2 * bias_grad).abs().max()
     grad_err = input_grad_err + offset_grad_err + weight_grad_err + bias_grad_err
     if grad_err:
-        print("sconv im2col_step backward passed with {} = {}+{}+{}+{}".format(grad_err, input_grad_err, offset_grad_err, weight_grad_err, bias_grad_err))
+        print("sconv im2col_step backward successfully passed with {} = {}+{}+{}+{}".format(grad_err, input_grad_err, offset_grad_err, weight_grad_err, bias_grad_err))
     else:
         print("sconv im2col_step backward failed with {} = {}+{}+{}+{}".format(grad_err, input_grad_err, offset_grad_err, weight_grad_err, bias_grad_err))
 
@@ -146,11 +146,13 @@ if __name__ == '__main__':
 
     example_sconv()
 
-    print('checking')
-    check_sconv_im2col_step_forward()
-    check_sconv_im2col_step_backward()
+    for _num_pts in [4, 9, 25]:
+        num_pts = _num_pts
+        print('checking num_pts: {}'.format(num_pts if num_pts is not None else "None"))
+        check_sconv_im2col_step_forward()
+        check_sconv_im2col_step_backward()
 
-    check_gradient_sconv()
+        check_gradient_sconv()
     # """
     # ****** Note: backward is not reentrant error may not be a serious problem,
     # ****** since the max error is less than 1e-7,
