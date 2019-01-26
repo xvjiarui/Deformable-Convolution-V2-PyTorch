@@ -4,3 +4,4 @@ from .modulated_deform_conv2d import ModulatedDeformConv2d, _ModulatedDeformConv
 from .deform_psroi_pooling import DeformRoIPooling, _DeformRoIPooling, DeformRoIPoolingPack
 
 from .deform_conv3d import DeformConv3d, _DeformConv3d, DeformConv3dPack
+from .sparse_conv3d import SparseConv3d, _SparseConv3d, SparseConv3dPack
