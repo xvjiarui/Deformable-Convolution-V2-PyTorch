@@ -52,8 +52,10 @@ class deform_conv2d_naive(Module):
         offset = offset.view(N, self.deformable_groups, kH, kW, 2, outH, outW)
         # [N * dg * kH * kW, outH, outW, 2]
         offset = offset.permute(0, 1, 2, 3, 5, 6, 4).contiguous().view(N * self.deformable_groups * kH * kW, outH, outW, 2)
-        offset_x_normalize = (offset[:, :, :, 1]) / ((outW - 1) * 1.0 / 2)
-        offset_y_normalize = (offset[:, :, :, 0]) / ((outH - 1) * 1.0 / 2)
+        # offset_x_normalize = (offset[:, :, :, 1]) / ((outW - 1) * 1.0 / 2)
+        # offset_y_normalize = (offset[:, :, :, 0]) / ((outH - 1) * 1.0 / 2)
+        offset_x_normalize = (offset[:, :, :, 1]) / ((inW - 1) * 1.0 / 2)
+        offset_y_normalize = (offset[:, :, :, 0]) / ((inH - 1) * 1.0 / 2)
         # [N * dg * kH * kW, outH, outW, 2]
         offset = torch.cat([offset_x_normalize[..., None], offset_y_normalize[..., None]], dim=3)
         # [N * dg * kH * kW, outH, outW, 2]
@@ -71,19 +73,23 @@ class deform_conv2d_naive(Module):
         outH = (inH-kH + 2 * self.padding[0])//self.stride[0] + 1
         outW = (inW-kW + 2 * self.padding[1])//self.stride[1] + 1
         # [outH, outW]
-        mesh_y, mesh_x = torch.meshgrid(torch.arange(outH), torch.arange(outW))
+        mesh_y, mesh_x = torch.meshgrid(torch.arange(start=0, end=outH*self.stride[0], step=self.stride[0]), torch.arange(start=0, end=outW*self.stride[1], step=self.stride[1]))
         # [1, outH, outW]
         mesh_y = mesh_y.unsqueeze(0).float()
         mesh_x = mesh_x.unsqueeze(0).float()
         # [kH, kW]
         kernel_offset_y, kernel_offset_x = torch.meshgrid(torch.arange(kH), torch.arange(kW))
         # [kH * kW, 1, 1]
-        kernel_offset_y = (kernel_offset_y.float() - (kH - 1)/2.).view(kH * kW, 1, 1)
-        kernel_offset_x = (kernel_offset_x.float() - (kW - 1)/2.).view(kH * kW, 1, 1)
+        # kernel_offset_y = (kernel_offset_y.float() - (kH - 1)/2.).view(kH * kW, 1, 1)
+        # kernel_offset_x = (kernel_offset_x.float() - (kW - 1)/2.).view(kH * kW, 1, 1)
+        kernel_offset_y = (kernel_offset_y.float() - self.padding[0]).view(kH * kW, 1, 1)
+        kernel_offset_x = (kernel_offset_x.float() - self.padding[1]).view(kH * kW, 1, 1)
         # [kH * kW, outH, outW]
         mesh_y = mesh_y + kernel_offset_y
         mesh_x = mesh_x + kernel_offset_x
-        mesh_x = (mesh_x - (outW - 1)/2.) / ((outW - 1)/2.)
-        mesh_y = (mesh_y - (outH - 1)/2.) / ((outH - 1)/2.)
+        # mesh_x = (mesh_x - (outW - 1)/2.) / ((outW - 1)/2.)
+        # mesh_y = (mesh_y - (outH - 1)/2.) / ((outH - 1)/2.)
+        mesh_y = (mesh_y - (inH - 1)/2.) / ((inH - 1)/2.)
+        mesh_x = (mesh_x - (inW - 1)/2.) / ((inW - 1)/2.)
         mesh = torch.cat([mesh_x[None, ..., None], mesh_y[None, ..., None]], dim=4)
         return mesh
