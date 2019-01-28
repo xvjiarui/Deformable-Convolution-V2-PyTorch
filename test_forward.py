@@ -14,8 +14,8 @@ from modules.deform_psroi_pooling import DeformRoIPooling, _DeformRoIPooling, De
 from deform_conv2d_naive import deform_conv2d_naive
 
 deformable_groups = 1
-N, inC, inH, inW = 1, 4, 8, 8
-outC = 1
+N, inC, inH, inW = 1, 4, 16, 16
+outC = 2
 kH, kW = 3, 3
 stride = 1
 groups = 1
@@ -80,6 +80,7 @@ def check_dconv_naive_zero_offset():
                             kernel_size=(kH, kW),
                             stride=stride,
                             padding=padding,
+                            dilation=dilation,
                             bias=True).cuda()
 
     dcn = deform_conv2d_naive(inC, outC, (kH, kW), stride=stride, padding=padding,
@@ -113,6 +114,7 @@ def check_dconv_zero_offset_identify():
                             kernel_size=(kH, kW),
                             stride=stride,
                             padding=padding,
+                            dilation=dilation,
                             bias=True).cuda()
 
     dcn = DeformConv2d(inC, outC, (kH, kW),
@@ -142,6 +144,7 @@ def check_forward_dconv():
                             kernel_size=(kH, kW),
                             stride=stride,
                             padding=padding,
+                            dilation=dilation,
                             bias=True).cuda()
     # conv_offset.weight.data.zero_()
     # conv_offset.bias.data.zero_()
@@ -199,6 +202,26 @@ if __name__ == '__main__':
 
     check_dconv_naive_zero_offset()
     check_forward_dconv()
+    kernel_size_list = [1, 3, 5, 7]
+    stride_list = [1, 2]
+    padding_list = [0, 1, 2]
+    dilation_list = [1, 2]
+    for kernel_size in kernel_size_list:
+        print('kernel: {}'.format(kernel_size))
+        kH = kernel_size
+        kW = kernel_size
+        for stride_size in stride_list:
+            print('stride: {}'.format(stride_size))
+            stride = stride_size
+            for padding_size in padding_list:
+                print('padding: {}'.format(padding_size))
+                padding = padding_size
+                for dilation_size in dilation_list:
+                    print('dilation: {}'.format(dilation_size))
+                    dilation = dilation_size
+                    check_dconv_naive_zero_offset()
+                    check_forward_dconv()
+
     # """
     # ****** Note: backward is not reentrant error may not be a serious problem,
     # ****** since the max error is less than 1e-7,
