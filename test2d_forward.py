@@ -9,8 +9,6 @@ import torch.nn as nn
 from gradcheck import gradcheck
 
 from modules.deform_conv2d import DeformConv2d, _DeformConv2d, DeformConv2dPack
-from modules.modulated_deform_conv2d import ModulatedDeformConv2d, _ModulatedDeformConv2d, ModulatedDeformConv2dPack
-from modules.deform_psroi_pooling import DeformRoIPooling, _DeformRoIPooling, DeformRoIPoolingPack
 from deform_conv2d_naive import deform_conv2d_naive
 
 deformable_groups = 1
@@ -23,21 +21,6 @@ dilation = 1
 padding = 1
 
 torch.manual_seed(3)
-
-
-def conv_identify(weight, bias, groups=1):
-    weight.data.zero_()
-    bias.data.zero_()
-    o, i, h, w = weight.shape
-    y = h//2
-    x = w//2
-    oc = o // groups
-    for p in range(i):
-        for q in range(o):
-            if (p) == (q % oc):
-                # print(q, p, y, x)
-                # print(q % oc)
-                weight.data[q, p, y, x] = 1.0
 
 
 def check_dconv_zero_offset():
@@ -109,36 +92,6 @@ def check_dconv_naive_zero_offset():
         print((output_d - output_p).abs())
 
 
-def check_dconv_zero_offset_identify():
-    conv_offset = nn.Conv2d(inC, deformable_groups * 2 * kH * kW,
-                            kernel_size=(kH, kW),
-                            stride=stride,
-                            padding=padding,
-                            dilation=dilation,
-                            bias=True).cuda()
-
-    dcn = DeformConv2d(inC, outC, (kH, kW),
-        stride=stride, padding=padding, dilation=dilation,
-        groups=groups, 
-        deformable_groups=deformable_groups,
-        im2col_step=1).cuda()
-
-    conv_offset.weight.data.zero_()
-    conv_offset.bias.data.zero_()
-    conv_identify(dcn.weight, dcn.bias, groups)
-
-    input = torch.randn(N, inC, inH, inW).cuda()
-    offset = conv_offset(input)
-    output = dcn(input, offset)
-    d = (input - output).abs().max()
-    if d < 1e-10:
-        print('dconv zero offset identify passed with {}'.format(d))
-    else:
-        print('dconv zero offset identify failed with {}'.format(d))
-        # print(input)
-        # print(output)
-        print((input - output).abs())
-
 def check_forward_dconv():
     conv_offset = nn.Conv2d(inC, 1 * 2 * kH * kW,
                             kernel_size=(kH, kW),
@@ -169,33 +122,6 @@ def check_forward_dconv():
         print(output1)
         print(output2)
         print((output1 - output2).abs())
-
-
-def check_gradient_dconv():
-
-    input = torch.rand(N, inC, inH, inW).double().cuda()
-    print('max input:', input.max())
-    input.requires_grad = True
-
-    offset = torch.randn(N, deformable_groups * 2 * kW * kH, inH, inW).double().cuda() * 2
-    # offset.data.zero_()
-    # offset.data -= 0.5
-    offset.requires_grad = True
-
-    weight = torch.randn(outC, int(inC//groups), kH, kW).double().cuda()
-    weight.requires_grad = True
-
-    bias = torch.rand(outC).double().cuda()
-    bias.requires_grad = True
-
-    # print('check_gradient_dconv: ',
-    #       gradcheck(_DeformConv, (input, offset, weight, bias,
-    #                 stride, padding, dilation, groups, deformable_groups, im2col_step),
-    #                 eps=1e-3, atol=1e-3, rtol=1e-2, raise_exception=True))
-    print('check_gradient_dconv: ',
-          gradcheck(_DeformConv2d, (input, offset, weight, bias,
-                    stride, padding, dilation, groups, deformable_groups, im2col_step)))
-
 
 
 if __name__ == '__main__':

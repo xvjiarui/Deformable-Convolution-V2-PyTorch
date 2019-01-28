@@ -9,7 +9,7 @@ from torch import nn
 from torch.nn import init
 from torch.nn.modules.utils import _pair
 
-from ..functions.sparse_conv2d_func import SparseConv2dFunction
+from functions.sparse_conv2d_func import SparseConv2dFunction
 
 
 class SparseConv2d(nn.Module):

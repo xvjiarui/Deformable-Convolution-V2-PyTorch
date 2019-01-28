@@ -10,7 +10,7 @@ from torch.nn import init
 from torch.nn.modules.utils import _triple
 import numpy as np
 
-from ..functions.sparse_conv3d_func import SparseConv3dFunction
+from functions.sparse_conv3d_func import SparseConv3dFunction
 
 class SparseConv3d(nn.Module):
 
