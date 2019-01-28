@@ -91,8 +91,8 @@ class DeformConv3dPack(DeformConv3d):
         self.conv_offset.lr_mult = lr_mult
         self.conv_offset.inited = True
         self.init_offset()
-        self.dim_mask = np.tile(np.repeat(np.array(dim_mask), self.kernel_size[0] * self.kernel_size[1] * self.kernel_size[2]), self.deformable_groups)
-        self.dim_mask = torch.from_numpy(self.dim_mask).view(1, out_channels, 1, 1, 1).float()
+        self.dim_mask = torch.Tensor(dim_mask).repeat(self.deformable_groups * self.kernel_size[0] * self.kernel_size[1] * self.kernel_size[2])
+        self.dim_mask = self.dim_mask.view(1, out_channels, 1, 1, 1).float()
 
     def init_offset(self):
         self.conv_offset.weight.data.zero_()

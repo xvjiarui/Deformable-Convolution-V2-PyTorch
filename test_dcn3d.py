@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from dcn.gradcheck import gradcheck
 
-# please run test file from parent folder, e.g. scp test3d.py .. && python ../test3d.py
+# please run test file from parent folder, e.g. scp test_dcn3d.py .. && python ../test_dcn3d.py
 from dcn.modules.deform_conv3d import DeformConv3d, _DeformConv3d, DeformConv3dPack
 # from dcn.modules.modulated_deform_conv import ModulatedDeformConv, _ModulatedDeformConv, ModulatedDeformConvPack
 
