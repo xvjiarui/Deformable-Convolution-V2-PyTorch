@@ -1,5 +1,5 @@
 #include <vector>
-#include "cuda/deform_im2col_cuda.cuh"
+#include "cuda/modulated_deform_2d_im2col_cuda.cuh"
 
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
@@ -17,21 +17,22 @@
 
 
 at::Tensor
-deform_conv_cuda_forward(const at::Tensor &input,
-                    const at::Tensor &weight,
-                    const at::Tensor &bias,
-                    const at::Tensor &offset,
-                    const int kernel_h,
-                    const int kernel_w,
-                    const int stride_h,
-                    const int stride_w,
-                    const int pad_h,
-                    const int pad_w,
-                    const int dilation_h,
-                    const int dilation_w,
-                    const int group,
-                    const int deformable_group,
-                    const int im2col_step)
+modulated_deform_conv2d_cuda_forward(const at::Tensor &input,
+                                     const at::Tensor &weight,
+                                     const at::Tensor &bias,
+                                     const at::Tensor &offset,
+                                     const at::Tensor &mask,
+                                     const int kernel_h,
+                                     const int kernel_w,
+                                     const int stride_h,
+                                     const int stride_w,
+                                     const int pad_h,
+                                     const int pad_w,
+                                     const int dilation_h,
+                                     const int dilation_w,
+                                     const int group,
+                                     const int deformable_group,
+                                     const int im2col_step)
 {
     // THCAssertSameGPU(THCudaTensor_checkGPU(state, 5, input, weight, bias, offset, mask));
 
@@ -42,6 +43,7 @@ deform_conv_cuda_forward(const at::Tensor &input,
     AT_ASSERTM(weight.type().is_cuda(), "weight must be a CUDA tensor");
     AT_ASSERTM(bias.type().is_cuda(), "bias must be a CUDA tensor");
     AT_ASSERTM(offset.type().is_cuda(), "offset must be a CUDA tensor");
+    AT_ASSERTM(mask.type().is_cuda(), "mask must be a CUDA tensor");
 
     const int batch = input.size(0);
     const int channels = input.size(1);
@@ -72,7 +74,7 @@ deform_conv_cuda_forward(const at::Tensor &input,
 
     const int height_out = (height + 2 * pad_h - (dilation_h * (kernel_h - 1) + 1)) / stride_h + 1;
     const int width_out = (width + 2 * pad_w - (dilation_w * (kernel_w - 1) + 1)) / stride_w + 1;
-
+    
     auto output = at::empty({batch * height_out * width_out, channels_out}, input.options());
 
     // prepare group weight and bias
@@ -83,14 +85,16 @@ deform_conv_cuda_forward(const at::Tensor &input,
     const int batch_n = im2col_step_;
     const int per_input_size = channels * height * width;
     const int per_offset_size = offset.size(1) * offset.size(2) * offset.size(3);
+    const int per_mask_size = mask.size(1) * mask.size(2) * mask.size(3);
     auto output_n = output.view({batch/im2col_step_, batch_n * height_out * width_out, channels_out});
     for (int n = 0; n < batch/im2col_step_; ++n)
     {
         auto columns = at::empty({channels * kernel_h * kernel_w, batch_n * height_out * width_out}, input.options());
         AT_DISPATCH_FLOATING_TYPES(input.type(), "deform_conv_forward_cuda", ([&] {
-            deformable_im2col_cuda(at::cuda::getCurrentCUDAStream(),
+            modulated_deformable_2d_im2col_cuda(at::cuda::getCurrentCUDAStream(),
                                              input.data<scalar_t>() + n * im2col_step_ * per_input_size,
                                              offset.data<scalar_t>() + n * im2col_step_ * per_offset_size,
+                                             mask.data<scalar_t>() + n * im2col_step_ * per_mask_size,
                                              batch_n, channels, height, width,
                                              height_out, width_out, kernel_h, kernel_w,
                                              pad_h, pad_w, stride_h, stride_w, dilation_h, dilation_w,
@@ -99,9 +103,6 @@ deform_conv_cuda_forward(const at::Tensor &input,
 
         }));
 
-        // auto columns_m = columns.t();
-        // auto weight_m = weight.view({channels_out, channels_kernel * kernel_h * kernel_w}).t();
-        // output = at::addmm(bias, columns_m, weight_m);
         auto columns_g = columns.view({group, channels/group * kernel_h * kernel_w, batch_n * height_out * width_out});
         auto output_g = output_n.select(0, n).view({batch_n * height_out * width_out, group, channels_out/group});
         for (int g = 0; g < group; ++g)
@@ -119,22 +120,24 @@ deform_conv_cuda_forward(const at::Tensor &input,
     return output;
 }
 
-std::vector<at::Tensor> deform_conv_cuda_backward(const at::Tensor &input,
-                                             const at::Tensor &weight,
-                                             const at::Tensor &bias,
-                                             const at::Tensor &offset,
-                                             const at::Tensor &grad_output,
-                                             const int kernel_h, 
-                                             const int kernel_w,
-                                             const int stride_h, 
-                                             const int stride_w,
-                                             const int pad_h, 
-                                             const int pad_w,
-                                             const int dilation_h, 
-                                             const int dilation_w,
-                                             const int group,
-                                             const int deformable_group,
-                                             const int im2col_step)
+
+std::vector<at::Tensor> modulated_deform_conv2d_cuda_backward(const at::Tensor &input,
+                                                              const at::Tensor &weight,
+                                                              const at::Tensor &bias,
+                                                              const at::Tensor &offset,
+                                                              const at::Tensor &mask,
+                                                              const at::Tensor &grad_output,
+                                                              const int kernel_h,
+                                                              const int kernel_w,
+                                                              const int stride_h,
+                                                              const int stride_w,
+                                                              const int pad_h,
+                                                              const int pad_w,
+                                                              const int dilation_h,
+                                                              const int dilation_w,
+                                                              const int group,
+                                                              const int deformable_group,
+                                                              const int im2col_step)
 {
 
     AT_ASSERTM(input.is_contiguous(), "input tensor has to be contiguous");
@@ -144,6 +147,7 @@ std::vector<at::Tensor> deform_conv_cuda_backward(const at::Tensor &input,
     AT_ASSERTM(weight.type().is_cuda(), "weight must be a CUDA tensor");
     AT_ASSERTM(bias.type().is_cuda(), "bias must be a CUDA tensor");
     AT_ASSERTM(offset.type().is_cuda(), "offset must be a CUDA tensor");
+    AT_ASSERTM(mask.type().is_cuda(), "mask must be a CUDA tensor");
 
     const int batch = input.size(0);
     const int channels = input.size(1);
@@ -185,14 +189,14 @@ std::vector<at::Tensor> deform_conv_cuda_backward(const at::Tensor &input,
     AT_ASSERTM(height_out == height_out_ && width_out == width_out_,
                "Input shape and grad_out shape wont match: (%d x %d vs %d x %d).", height_out, height_out_, width_out, width_out_);
 
+    auto ones = at::ones({batch * height_out * width_out}, input.options());
+    auto columns = at::empty({channels * kernel_h * kernel_w, batch * 1 * height_out * width_out}, input.options());
+
     auto grad_input = at::zeros_like(input);
-    auto grad_offset = at::zeros_like(offset);
     auto grad_weight = at::zeros_like(weight);
     auto grad_bias = at::zeros_like(bias);
-
-    // auto grad_output_m = grad_output.permute({1, 0, 2, 3}).contiguous().view({channels_out, batch * height_out * width_out});
-    // auto weight_m = weight.view({channels_out, channels_kernel * kernel_h * kernel_w}).t();
-    // columns = at::mm(weight_m, grad_output_m);
+    auto grad_offset = at::zeros_like(offset);
+    auto grad_mask = at::zeros_like(mask);
 
     // prepare group weight and bias
     auto weight_g = weight.view({group, channels_out/group, channels_kernel, kernel_h, kernel_w});
@@ -202,6 +206,7 @@ std::vector<at::Tensor> deform_conv_cuda_backward(const at::Tensor &input,
     const int batch_n = im2col_step_;
     const int per_input_size = channels * height * width;
     const int per_offset_size = offset.size(1) * offset.size(2) * offset.size(3);
+    const int per_mask_size = mask.size(1) * mask.size(2) * mask.size(3);
     auto grad_output_n = grad_output.view({batch/im2col_step_, batch_n, channels_out, height_out, width_out});
     for (int n = 0; n < batch/im2col_step_; ++n)
     {
@@ -217,19 +222,22 @@ std::vector<at::Tensor> deform_conv_cuda_backward(const at::Tensor &input,
         }
 
         AT_DISPATCH_FLOATING_TYPES(input.type(), "deform_conv_backward_cuda", ([&] {
-            deformable_col2im_coord_cuda(at::cuda::getCurrentCUDAStream(),
+            modulated_deformable_2d_col2im_coord_cuda(at::cuda::getCurrentCUDAStream(),
                                                    columns.data<scalar_t>(),
                                                    input.data<scalar_t>() + n * im2col_step_ * per_input_size,
                                                    offset.data<scalar_t>() + n * im2col_step_ * per_offset_size,
+                                                   mask.data<scalar_t>() + n * im2col_step_ * per_mask_size,
                                                    batch_n, channels, height, width,
                                                    height_out, width_out, kernel_h, kernel_w,
                                                    pad_h, pad_w, stride_h, stride_w,
                                                    dilation_h, dilation_w, deformable_group,
-                                                   grad_offset.data<scalar_t>() + n * im2col_step_ * per_offset_size);
+                                                   grad_offset.data<scalar_t>() + n * im2col_step_ * per_offset_size,
+                                                   grad_mask.data<scalar_t>() + n * im2col_step_ * per_mask_size);
             // gradient w.r.t. input data
-            deformable_col2im_cuda(at::cuda::getCurrentCUDAStream(),
+            modulated_deformable_2d_col2im_cuda(at::cuda::getCurrentCUDAStream(),
                                              columns.data<scalar_t>(),
                                              offset.data<scalar_t>() + n * im2col_step_ * per_offset_size,
+                                             mask.data<scalar_t>() + n * im2col_step_ * per_mask_size,
                                              batch_n, channels, height, width,
                                              height_out, width_out, kernel_h, kernel_w,
                                              pad_h, pad_w, stride_h, stride_w,
@@ -237,9 +245,10 @@ std::vector<at::Tensor> deform_conv_cuda_backward(const at::Tensor &input,
                                              grad_input.data<scalar_t>() + n * im2col_step_ * per_input_size);
 
             // gradient w.r.t. weight, dWeight should accumulate across the batch and group
-            deformable_im2col_cuda(at::cuda::getCurrentCUDAStream(),
+            modulated_deformable_2d_im2col_cuda(at::cuda::getCurrentCUDAStream(),
                                              input.data<scalar_t>() + n * im2col_step_ * per_input_size,
                                              offset.data<scalar_t>() + n * im2col_step_ * per_offset_size,
+                                             mask.data<scalar_t>() + n * im2col_step_ * per_mask_size,
                                              batch_n, channels, height, width,
                                              height_out, width_out, kernel_h, kernel_w,
                                              pad_h, pad_w, stride_h, stride_w,
@@ -266,6 +275,6 @@ std::vector<at::Tensor> deform_conv_cuda_backward(const at::Tensor &input,
     }
 
     return {
-        grad_input, grad_offset, grad_weight, grad_bias
+        grad_input, grad_offset, grad_mask, grad_weight, grad_bias
     };
 }

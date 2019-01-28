@@ -23,7 +23,7 @@ class ModulatedDeformConv2dFunction(Function):
         ctx.groups = groups
         ctx.deformable_groups = deformable_groups
         ctx.im2col_step = im2col_step
-        output = DCN.modulated_deform_conv_forward(input, weight, bias,
+        output = DCN.modulated_deform_conv2d_forward(input, weight, bias,
                                          offset, mask,
                                          ctx.kernel_size[0], ctx.kernel_size[1],
                                          ctx.stride[0], ctx.stride[1],
@@ -40,7 +40,7 @@ class ModulatedDeformConv2dFunction(Function):
     def backward(ctx, grad_output):
         input, offset, mask, weight, bias = ctx.saved_tensors
         grad_input, grad_offset, grad_mask, grad_weight, grad_bias = \
-            DCN.modulated_deform_conv_backward(input, weight,
+            DCN.modulated_deform_conv2d_backward(input, weight,
                                      bias,
                                      offset, mask,
                                      grad_output,
