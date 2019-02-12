@@ -109,3 +109,42 @@ class SparseConv2dPack(SparseConv2d):
                                           self.num_pts,
                                           self.im2col_step)
 
+
+class SparseConv2dPackMore(SparseConv2d):
+
+    def __init__(self, in_channels, out_channels,
+                 kernel_size, stride, padding,
+                 dilation=1, groups=1, deformable_groups=1, num_pts=None, im2col_step=64, bias=True, lr_mult=0.1):
+        super(SparseConv2dPackMore, self).__init__(in_channels, out_channels,
+                                                   kernel_size, stride, padding, dilation, groups, deformable_groups, num_pts, im2col_step, bias)
+
+        out_channels = self.deformable_groups * 2 * self.num_pts
+        self.conv_offset = nn.Sequential(
+            nn.Conv2d(self.in_channels, self.in_channels//4, kernel_size=1, bias=False),
+            nn.BatchNorm2d(self.in_channels//4),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(self.in_channels//4, out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, bias=True)
+        )
+        self.conv_offset[-1].lr_mult = lr_mult
+        self.conv_offset[-1].inited = True
+        self.init_offset()
+
+    def init_offset(self):
+        self.conv_offset[-1].weight.data.zero_()
+        # self.conv_offset.bias.data.zero_()
+        bound = (self.kernel_size[0] + self.kernel_size[1])//4
+        init.uniform_(self.conv_offset[-1].bias, -bound, bound)
+
+    def forward(self, input):
+        offset = self.conv_offset(input)
+        return SparseConv2dFunction.apply(input, offset,
+                                          self.weight,
+                                          self.bias,
+                                          self.kernel_size,
+                                          self.stride,
+                                          self.padding,
+                                          self.dilation,
+                                          self.groups,
+                                          self.deformable_groups,
+                                          self.num_pts,
+                                          self.im2col_step)

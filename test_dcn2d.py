@@ -9,7 +9,7 @@ import torch.nn as nn
 from dcn.gradcheck import gradcheck
 
 # please run test file from parent folder, e.g. scp test.py .. && python ../test.py
-from dcn.modules.deform_conv2d import DeformConv2d, _DeformConv2d, DeformConv2dPack
+from dcn.modules.deform_conv2d import DeformConv2d, _DeformConv2d, DeformConv2dPack, DeformConv2dPackMore
 from dcn.modules.modulated_deform_conv2d import ModulatedDeformConv2d, _ModulatedDeformConv2d, ModulatedDeformConv2dPack
 from dcn.modules.deform_psroi_pooling import DeformRoIPooling, _DeformRoIPooling, DeformRoIPoolingPack
 
@@ -521,6 +521,19 @@ def example_dconv():
     error.backward()
     print(output.shape)
 
+def example_dconv_more():
+    input = torch.randn(2, 64, 128, 128).cuda()
+    # wrap all things (offset and mask) in DCN
+    dcn = DeformConv2dPackMore(64, 128, kernel_size=(3, 3), stride=1,
+                           padding=1, groups=2, deformable_groups=2).cuda()
+    # print(dcn.weight.shape, input.shape)
+    output = dcn(input)
+    targert = output.new(*output.size())
+    targert.data.uniform_(-0.01, 0.01)
+    error = (targert - output).mean()
+    error.backward()
+    print(output.shape)
+
 def example_mdconv():
     input = torch.randn(2, 64, 128, 128).cuda()
     # wrap all things (offset and mask) in DCN
@@ -608,6 +621,7 @@ def example_mdpooling():
 if __name__ == '__main__':
 
     example_dconv()
+    example_dconv_more()
     example_mdconv()
     example_dpooling()
     example_mdpooling()

@@ -9,7 +9,7 @@ import torch.nn as nn
 from dcn.gradcheck import gradcheck
 
 # please run test file from parent folder, e.g. scp test.py .. && python ../test.py
-from dcn.modules.sparse_conv2d import SparseConv2d, _SparseConv2d, SparseConv2dPack
+from dcn.modules.sparse_conv2d import SparseConv2d, _SparseConv2d, SparseConv2dPack, SparseConv2dPackMore
 
 deformable_groups = 1
 N, inC, inH, inW = 2, 4, 4, 4
@@ -141,10 +141,24 @@ def example_sconv():
     error.backward()
     print(output.shape)
 
+def example_sconv_more():
+    input = torch.randn(2, 64, 128, 128).cuda()
+    # wrap all things (offset and mask) in DCN
+    scn = SparseConv2dPackMore(64, 128, kernel_size=(3, 3), stride=1,
+                           padding=1, groups=2, deformable_groups=2).cuda()
+    # print(scn.weight.shape, input.shape)
+    output = scn(input)
+    targert = output.new(*output.size())
+    targert.data.uniform_(-0.01, 0.01)
+    error = (targert - output).mean()
+    error.backward()
+    print(output.shape)
+
 
 if __name__ == '__main__':
 
     example_sconv()
+    example_sconv_more()
 
     for _num_pts in [4, 9, 25]:
         num_pts = _num_pts

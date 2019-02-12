@@ -9,7 +9,7 @@ import torch.nn as nn
 from dcn.gradcheck import gradcheck
 
 # please run test file from parent folder, e.g. scp test_dcn3d.py .. && python ../test_dcn3d.py
-from dcn.modules.deform_conv3d import DeformConv3d, _DeformConv3d, DeformConv3dPack
+from dcn.modules.deform_conv3d import DeformConv3d, _DeformConv3d, DeformConv3dPack, DeformConv3dPackMore
 # from dcn.modules.modulated_deform_conv import ModulatedDeformConv, _ModulatedDeformConv, ModulatedDeformConvPack
 
 deformable_groups = 1
@@ -448,6 +448,19 @@ def example_dconv3d():
     error.backward()
     print(output.shape)
 
+def example_dconv3d_more():
+    input = torch.randn(2, 64, 8, 128, 128).cuda()
+    # wrap all things (offset and mask) in DCN
+    dcn = DeformConv3dPackMore(64, 128, kernel_size=(kD, kH, kW), stride=1,
+                           padding=1, groups=2, deformable_groups=2).cuda()
+    # print(dcn.weight.shape, input.shape)
+    output = dcn(input)
+    targert = output.new(*output.size())
+    targert.data.uniform_(-0.01, 0.01)
+    error = (targert - output).mean()
+    error.backward()
+    print(output.shape)
+
 def example_mdconv():
     input = torch.randn(2, 64, 128, 128).cuda()
     # wrap all things (offset and mask) in DCN
@@ -467,6 +480,7 @@ def example_mdconv():
 if __name__ == '__main__':
 
     example_dconv3d()
+    example_dconv3d_more()
     # example_mdconv()
 
     print('checking')
