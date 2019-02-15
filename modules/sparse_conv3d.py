@@ -99,7 +99,9 @@ class SparseConv3dPack(SparseConv3d):
 
     def init_offset(self):
         self.conv_offset.weight.data.zero_()
-        self.conv_offset.bias.data.zero_()
+        # self.conv_offset.bias.data.zero_()
+        bound = (self.kernel_size[0] + self.kernel_size[1] + self.kernel_size[2])//6
+        init.uniform_(self.conv_offset.bias, -bound, bound)
 
     def forward(self, input):
         offset = self.conv_offset(input)
@@ -155,7 +157,9 @@ class SparseConv3dPackMore(SparseConv3d):
 
     def init_offset(self):
         self.conv_offset[-1].weight.data.zero_()
-        self.conv_offset[-1].bias.data.zero_()
+        # self.conv_offset[-1].bias.data.zero_()
+        bound = (self.kernel_size[0] + self.kernel_size[1] + self.kernel_size[2])//6
+        init.uniform_(self.conv_offset[-1].bias, -bound, bound)
 
     def forward(self, input):
         offset = self.conv_offset(input)
